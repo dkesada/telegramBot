@@ -19,7 +19,7 @@ class Sumador(telepot.helper.ChatHandler):
 			else:
 				self._sumando = False
 				self.sender.sendMessage("Resultado: " + str(self._operando + float(msg['text'])))
-		except TipeError:
+		except ValueError:
 			self._sumando = False
 			self.sender.sendMessage("Por favor, introduzca operandos validos.")
 
