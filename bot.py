@@ -11,14 +11,17 @@ class Sumador(telepot.helper.ChatHandler):
 		self._sumando = False
 
 	def on_chat_message(self, msg):
-		if self._sumando == False:
-			self._sumando = True
-			self._operando = int(msg['text'])
-			self.sender.sendMessage("Introduzca el siguiente operando: ")
-		else:
+		try:
+			if self._sumando == False:
+				self._sumando = True
+				self._operando = float(msg['text'])
+				self.sender.sendMessage("Introduzca el siguiente operando: ")
+			else:
+				self._sumando = False
+				self.sender.sendMessage("Resultado: " + str(self._operando + float(msg['text'])))
+		except TipeError:
 			self._sumando = False
-			self.sender.sendMessage("Resultado: " + str(self._operando + int(msg['text'])))
-
+			self.sender.sendMessage("Por favor, introduzca operandos validos.")
 
 TOKEN = '255866015:AAFvI3sUR1sOFbeDrUceVyAs44KlfKgx-UE'
 
