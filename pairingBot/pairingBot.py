@@ -18,8 +18,8 @@ keyboard1 = ReplyKeyboardMarkup(keyboard=[
 # Termina una conversacion
 def terminarPareja(x):
  par = convers[x]
- bot.sendMessage(pareja[0], 'Conexion finalizada.')
- bot.sendMessage(pareja[1], 'Conexion finalizada.')
+ bot.sendMessage(x, 'Conexion finalizada.')
+ bot.sendMessage(par, 'Conexion finalizada.')
  del convers[x]
  del convers[par]
 
