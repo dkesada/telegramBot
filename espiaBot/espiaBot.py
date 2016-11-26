@@ -6,27 +6,9 @@ from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from Queue import Queue
 from random import randint
 
-partidas = {}
+# El objetivo de este bot era comprobar cómo funcionan los bots en grupos y ver cómo 
+# podía gestionar partidas con muchos miembros y usando threads para cada partida
 
-# Pongo una ubicacion y sus oficios a pincho para probar el bot
-
-ubicaciones = ['Cocina de restaurante']
-oficios = []
-rel = {}
-numUb = 0
-rel['Cocina de restaurante'] = numUb
-numUb = numUb + 1
-cocina = ['Cocinero', 'Friega platos', 'Camarero', 'Pinche de cocina', 'Dueño del restaurante', 'Gerente']
-oficios.append(cocina)
-
-keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
-                   [InlineKeyboardButton(text='Unirse', callback_data='unirse'),
-                   InlineKeyboardButton(text='Comenzar partida', callback_data='comenzar')],
-               ])
-keyboard2 = InlineKeyboardMarkup(inline_keyboard=[
-                   [InlineKeyboardButton(text='Ver oficio', callback_data='oficio')],
-               ])
-               
 # Bot que organiza partidas de espia en grupos. Al ser anadido a un grupo, se va anadiendo
 # gente a la partida por medio del inline keyboard y al darle a comenzar se distribuyen
 # oficios entre los jugadores. Se creara una cuenta atras para ese chat en concreto y cuando
@@ -57,6 +39,33 @@ keyboard2 = InlineKeyboardMarkup(inline_keyboard=[
 # integrante de la partida sin que el resto lo sepan, cosa fundamental para el desarrollo de
 # una partida.
 
+# Este diccionario relaciona un chat_id con una cola a la que meto órdenes que le llegan de
+# cada partida al bot. Las órdenes las gestiona cada hilo, cada uno las de su cola
+partidas = {}
+
+# Pongo una ubicacion y sus oficios a pincho para probar el bot
+
+ubicaciones = ['Cocina de restaurante']
+oficios = []
+rel = {}
+numUb = 0
+rel['Cocina de restaurante'] = numUb
+numUb = numUb + 1
+cocina = ['Cocinero', 'Friega platos', 'Camarero', 'Pinche de cocina', 'Dueño del restaurante', 'Gerente']
+oficios.append(cocina)
+
+
+# Aquí pongo los 2 inline keyboards que voy a usar. Como estos van sujetos a un mensaje,
+# cada mensaje puede tener un inline keyboard distinto.
+
+keyboard1 = InlineKeyboardMarkup(inline_keyboard=[
+                   [InlineKeyboardButton(text='Unirse', callback_data='unirse'),
+                   InlineKeyboardButton(text='Comenzar partida', callback_data='comenzar')],
+               ])
+keyboard2 = InlineKeyboardMarkup(inline_keyboard=[
+                   [InlineKeyboardButton(text='Ver oficio', callback_data='oficio')],
+               ])
+
 
 # Thread que espera un numero de segundos antes de poner fin a true
 def cronometro(q, fin):
@@ -68,8 +77,7 @@ def cronometro(q, fin):
   q.put(['finalizar'])
 
 # Anade el chat al diccionario y crea el thread con la queue para 
-# pasarle usuarios que se vayan uniendo, el inicio de la partida o el final
-# de la misma
+# pasarle mensajes
 def comienzo(chat_id):
  q = Queue()
  t = threading.Thread(target=partida, args=(chat_id, q,))
@@ -77,15 +85,17 @@ def comienzo(chat_id):
  partidas[chat_id] = q
  t.start()
 
+#Este es el cuerpo de los threads que gestionan cada partida. La mayor parte del tiempo lo
+#pasa esperando que le lleguen mensajes por la cola que se le asigna.
 def partida(chat_id, q):
  num_jugadores = 0;
  fin = False
- jugadores = []
- asignados = []
- t = threading.Thread(target=cronometro, args=(q, fin))
+ jugadores = [] # Los jugadores que se vayan uniendo se añadirán aquí
+ asignados = [] # Aquí se recogen los oficios asignados a cada jugador cuando comience la partida
+ t = threading.Thread(target=cronometro, args=(q, fin)) # Cronómetro que dicta la duración máxima de la partida
  t.setDaemon = True
  empezada = False
- while(not fin):
+ while(not fin): # fin sólo se pone a true si llega el comando /fin al bot o se acaba el tiempo de cronómetro lanzado antes
   mensaje = q.get()
   if mensaje[0] is 'comenzar' and not empezada:
    asignar(jugadores, asignados)
@@ -141,7 +151,8 @@ def on_chat_message(msg):
     if msg['text'] == '/fin' and  msg['chat']['type'] == 'group' and chat_id in partidas:
       peticion(chat_id, ['finalizar'])
     
-
+# Los mensajes que mando a cada hilo tienen formato de lista, con el primer elemento siendo
+# el nombre de cada tipo de mensaje, y el resto de campos los datos que le hagan falta
 def on_callback_query(msg):
     query_id, from_id, query_data = telepot.glance(msg, flavor='callback_query')
     chat_id = msg['message']['chat']['id']
@@ -158,6 +169,8 @@ def on_callback_query(msg):
 TOKEN = '255866015:AAFvI3sUR1sOFbeDrUceVyAs44KlfKgx-UE'
 
 bot = telepot.Bot(TOKEN)
+# Definir así el message_loop hace que redirija los mensajes de texto a on_chat_message y
+# los callback_query generados por el teclado del bot a on_callback_query
 bot.message_loop({'chat': on_chat_message, 'callback_query': on_callback_query})
 print ('Listening ...')
 
