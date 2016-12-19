@@ -1,15 +1,13 @@
 #-*. coding: utf-8 -*-
 import time
 import telepot
-import threading
+import threading 
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from Queue import Queue
 
 ###
 
 # To do:
-# Leer mensajes del buzon
-# Enviar y contestar encuestas (creacion de encuestas ya hecha)
 # Guardar en fichero users y admin[0] como copia de seguridad por si cae el bot
 # Reset de los usuarios y el admin
 
@@ -26,7 +24,11 @@ claveUser = '3411'
 # Lista con los usuarios que están enviando un mensaje
 senders = []
 buzon = []
+# Datos para las encuestas
 enc = []
+opciones = []
+res = []
+cont = []
 
 # Los diferentes teclados que va a usar el bot
 
@@ -50,26 +52,30 @@ keyboardAdminSinMsg = InlineKeyboardMarkup(inline_keyboard=[
 keyboardMensaje = InlineKeyboardMarkup(inline_keyboard=[
                    [InlineKeyboardButton(text='Cancelar', callback_data='cancelar')],
                ])
-keyboardCrearEncuesta = InlineKeyboardMarkup(inline_keyboard=[
-                   [InlineKeyboardButton(text='Aceptar', callback_data='cancelar')],
-                   [InlineKeyboardButton(text='Cancelar', callback_data='cancelar')],
+keyboardLeyendo = InlineKeyboardMarkup(inline_keyboard=[
+                   [InlineKeyboardButton(text='Volver', callback_data='volver')],
                ])
 
 # Función que crea un teclado personalizado para realizar una encuesta a los integrantes del 
 # grupo. El primer parámetro es el texto del mensaje que se enviará con la encuesta, el segundo
 # argumento son las opciones a elegir en la encuesta separados por comas
 def encuesta(opciones):
- listado = opciones.split(';') # Opciones separadas por comas
+ listado = opciones.split(';') # Opciones separadas por punto y coma
  texto = listado.pop(0)
  botones = []
  n = 0
+ res = []
  
  for i in listado:
+  res.append(0)
   if i[0] == ' ':
    i = i[1:]
   botones.append([InlineKeyboardButton(text=i, callback_data='opcion' + str(n))])
+  opciones.append(i)
   n = n+1;
-  
+ 
+ enc = [texto, InlineKeyboardMarkup(inline_keyboard = botones)]
+ 
  botones.append([InlineKeyboardButton(text='(Aspecto correcto, crear encuesta.)', callback_data='enviarEnc')])
  botones.append([InlineKeyboardButton(text='(Aspecto incorrecto, rehacer encuesta.)', callback_data='encuesta')])
  botones.append([InlineKeyboardButton(text='(Cancelar)', callback_data='cancelar')])
@@ -91,6 +97,7 @@ def on_chat_message(msg):
       bot.sendMessage(chat_id, 'Puede enviar un mensaje al profesor pulsando el boton de abajo.', reply_markup=keyboardUser)
      elif msg['text'] == claveAdmin and admin[0] == 0:
       admin[0] = chat_id
+      bot.sendMessage(chat_id,"", reply_markup=ReplyKeyboardRemove(True))
       menuAdmin()
      elif msg['text'] == claveUser and not chat_id in users:
       bot.sendMessage(chat_id, 'Clave correcta. Bienvenido al bot de ELP. Cuando el profesor envíe algo yo te lo haré llegar. Si tienes algún mensaje para el profesor o alguna sugerencia, puedo hacérselo llegar si pulsas el botón de abajo.', reply_markup=keyboardUser)
@@ -98,20 +105,27 @@ def on_chat_message(msg):
       senders.remove(a)
       buzon.append(msg['text'])
       bot.sendMessage(chat_id, 'Mensaje enviado.', reply_markup=keyboardUser)
+     elif chat_id == admin[0] and admin[1] == 1 and msg['text'] == '/finEncuesta':
+      admin[1] = 0
+      enviarResultados()
      elif chat_id == admin[0] and admin[1] == 1:
       res = encuesta(msg['text'])
       bot.sendMessage(chat_id, res[0], reply_markup=res[1])
+     
       
 
 # Las pulsaciones en los botones del bot se gestionan en esta función
 def on_callback_query(msg):
     query_id, from_id, query_data = telepot.glance(msg, flavor='callback_query')
     
+    if(query_data != 'alumno' and query_data != 'profesor'):
+     bot.answerCallbackQuery(query_id)
+    
     if query_data == 'alumno':
       bot.answerCallbackQuery(query_id, text='Introduzca el código de los alumnos.')
     elif query_data == 'profesor':
       bot.answerCallbackQuery(query_id, text='Introduzca el código del profesor.')
-    elif query_data == 'msg_user':
+    elif query_data == 'msg_user':     
       senders.append(from_id)
       bot.sendMessage(from_id, "Escriba el mensaje que quiere enviar.", reply_markup=keyboardMensaje)
     elif query_data == 'encuesta':
@@ -124,11 +138,24 @@ def on_callback_query(msg):
       elif from_id in senders: # Un usuario cancela el envio de un mensaje
        senders.remove(from_id)
        bot.sendMessage(from_id, 'Mensaje no enviado.', reply_markup=keyboardUser)
+    elif query_data == 'msg_buzon':
+     sacarMesajeBuzon()
+    elif query_data == 'volver':
+     menuAdmin()
+    elif query_data == 'enviarEnc':
+     comenzarEncuesta()
+     bot.sendMenssage(from_id, 'Encuesta comenzada. Cuando contesten todos los alumnos o cuando introduzca /finEncuesta le llegarán los resultados.')
+     menuAdmin()
+    elif len(query_data) == 7 and query_data[0:6] == 'opcion' and (not from_id in cont) and admin[1] == 1:
+     respuestaEncuesta(from_id, query_data)
+      
+    
+    
 
 # Envia el menu principal del bot al admin
 def menuAdmin():
  if len(buzon) == 0: # Si no tiene mensajes
-  bot.sendMessage(admin[0], 'Bienvenido, no tiene mensajes en el buzón. ¿Qué desea hacer?', reply_markup=keyboardAdminSinMsg)
+  bot.sendMessage(admin[0], 'No tiene mensajes en el buzón. ¿Qué desea hacer?', reply_markup=keyboardAdminSinMsg)
  else:
   n = len(buzon)
   bot.sendMessage(admin[0], txtMensajes(n) + '¿Qué desea hacer?', reply_markup=keyboardAdminMsg)
@@ -141,6 +168,32 @@ def txtMensajes(n):
 		txt = 'Tiene ' + str(n) + ' mensajes. '
 	return txt
 
+def sacarMesajeBuzon():
+	if len(buzon) > 0:
+		msg = buzon.pop(0)
+		bot.sendMessage(admin[0], msg, reply_markup=keyboardLeyendo)
+
+def comenzarEncuesta():
+	cont = []
+	for i in users:
+		bot.sendMessage(i, 'Comienza un nueva encuesta:')
+		bot.sendMessage(i, enc[0], reply_markup=enc[1])
+		
+def respuestaEncuesta(from_id, query_data):
+	cont.append(from_id)
+	res[query_data[6]] = res[query_data[6]] + 1
+	bot.sendMenssage(from_id, 'Tu respuesta ha sido enviada.')
+	
+	if(len(users) == sum(res)):
+		admin[1] = 0
+		enviarResultados()
+     
+def enviarResultados():
+	msg = 'Resultados de la encuesta: '
+	for i in range(len(opciones)):
+		msg = msg + opciones[i] + ' -> ' + str(res[i]) + ' \n'
+	bot.sendMessage(admin[0], msg, reply_markup=keyboardLeyendo)
+		
 # Token del bot devuelto por botFather
 TOKEN = '255866015:AAFvI3sUR1sOFbeDrUceVyAs44KlfKgx-UE'
 
@@ -152,4 +205,4 @@ print ('Listening ...')
 
 # Tiempo de espera para comprobar nuevos mensajes
 while 1:
-    time.sleep(10)
+    time.sleep(5)
