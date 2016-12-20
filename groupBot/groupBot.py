@@ -1,17 +1,11 @@
 #-*. coding: utf-8 -*-
 import time
+import os.path
 import telepot
 import threading 
 from telepot.namedtuple import InlineKeyboardMarkup, InlineKeyboardButton
 from Queue import Queue
 
-###
-
-# To do:
-# Guardar en fichero users y admin[0] como copia de seguridad por si cae el bot
-# Reset de los usuarios y el admin
-
-###
 
 # Esta lista guarda los chat_id de los que entran como alumnos al bot
 users = []
@@ -29,6 +23,11 @@ enc = []
 opciones = []
 res = []
 cont = []
+
+# Si había una copia de seguridad se cargan los datos del admin y los users
+if os.path.exists('copiaSeg'):
+ leerCopiaSeg()
+
 
 # Los diferentes teclados que va a usar el bot
 
@@ -97,10 +96,13 @@ def on_chat_message(msg):
       bot.sendMessage(chat_id, 'Puede enviar un mensaje al profesor pulsando el boton de abajo.', reply_markup=keyboardUser)
      elif msg['text'] == claveAdmin and admin[0] == 0:
       admin[0] = chat_id
+      if not os.path.exists('copiaSeg'):
+       crearCopiaSeg()
       bot.sendMessage(chat_id,"", reply_markup=ReplyKeyboardRemove(True))
       menuAdmin()
      elif msg['text'] == claveUser and not chat_id in users:
       bot.sendMessage(chat_id, 'Clave correcta. Bienvenido al bot de ELP. Cuando el profesor envíe algo yo te lo haré llegar. Si tienes algún mensaje para el profesor o alguna sugerencia, puedo hacérselo llegar si pulsas el botón de abajo.', reply_markup=keyboardUser)
+      anadirACopiaSeg(chat_id)
      elif chat_id in senders:
       senders.remove(a)
       buzon.append(msg['text'])
@@ -193,9 +195,26 @@ def enviarResultados():
 	for i in range(len(opciones)):
 		msg = msg + opciones[i] + ' -> ' + str(res[i]) + ' \n'
 	bot.sendMessage(admin[0], msg, reply_markup=keyboardLeyendo)
-		
+
+def leerCopiaSeg():
+	cop = open('copiaSeg','r')
+	admin[0] = cop.read()
+	for u in cop:
+		users.append(u)
+	cop.close()
+
+def crearCopiaSeg():
+	cop = open('copiaSeg','w')
+	cop.write(str(admin[0]) + '\n')
+	cop.close()
+
+def anadirACopiaSeg(chat_id):
+	cop = open('copiaSeg','a')
+	cop.write(str(chat_id) + '\n')
+	cop.close()
+
 # Token del bot devuelto por botFather
-TOKEN = '255866015:AAFvI3sUR1sOFbeDrUceVyAs44KlfKgx-UE'
+TOKEN = '326265110:AAGuXzJHR0JAwnnHX6LtB6yRQtHpmgIMabU'
 
 bot = telepot.Bot(TOKEN)
 # Definir así el message_loop hace que redirija los mensajes de texto a on_chat_message y
