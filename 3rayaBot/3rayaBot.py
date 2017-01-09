@@ -25,29 +25,29 @@ class Gestionador(threading.Thread):
     def __init__(self, cola):
         threading.Thread.__init__(self)
         self.cola = cola
-        self.num = []
+        self.num = 0
         self.ids = [1,2]
     
     def run(self):
         while(True):
             mensaje = self.cola.get()
             if mensaje[0] is 'pair':
-                peticion(mensaje[1])
+                self.peticion(mensaje[1])
             elif mensaje[0] is 'delPair':
                 del partidas[mensaje[1]]
             time.sleep(3)
-    
-    def peticion(x):
-        if self.num[0] == 1 and ids[0] != x:
-            ids[1] = x
+            
+    def peticion(self, x):
+        if self.num == 1 and self.ids[0] != x:
+            self.ids[1] = x
             q1 = Queue()
             q2 = Queue()
             partidas[self.ids[0]] = [self.ids[1],'x',q1]
             partidas[self.ids[1]] = [self.ids[0],'o',q2]
-            self.num[0] = 0
+            self.num = 0
         else:
             self.ids[0] = x
-            self.num[0] = 1
+            self.num = 1
 
 class GameStarter(telepot.helper.ChatHandler):
     def __init__(self, *args, **kwargs):
@@ -75,13 +75,13 @@ class Game(telepot.helper.CallbackQueryOriginHandler):
 
     def _next_move(self, from_id):
         if self.turno != self.tipo:
-            msg = representateKeyboard(self.board) 
+            msg = self.representateKeyboard() 
             self.editor.editMessageText(msg, reply_markup=None)
             mov = partidas[from_id][2].get() # Si no te toca esperas el siguiente movimiento
             self.board[mov[0]] = mov[1]
-        self.turno = invers(self.turno) 
+        self.turno = self.invers() 
         msg = 'Tu turno.'
-        keyboard = createKeyboard(self.board)
+        keyboard = self.createKeyboard()
         
         self.editor.editMessageText(msg,reply_markup=keyboard)
 
@@ -94,7 +94,7 @@ class Game(telepot.helper.CallbackQueryOriginHandler):
                 time.sleep(2)
             self.tipo = partidas[from_id][1]
         else:
-            movimiento(from_id, query_data, self.tipo)
+            self.movimiento(from_id, int(query_data), self.tipo)
 
         self._next_move(from_id)
 
@@ -103,28 +103,28 @@ class Game(telepot.helper.CallbackQueryOriginHandler):
         self.editor.editMessageText(text, reply_markup=None)
         self.close()
         
-    def movimiento(self, from_id,pos,val): # Manda un movimiento a tu oponente
+    def movimiento(self,from_id,pos,val): # Manda un movimiento a tu oponente
         self.board[pos] = val
         partidas[partidas[from_id][0]][2].put([pos,val])
     
-    def invers(turno):
-        if turno == 'x':
+    def invers(self):
+        if self.turno == 'x':
             return 'o'
         else:
             return 'x'
     
-    def createKeyboard(board): # Crea un teclado con el tablero que se le da
+    def createKeyboard(self): # Crea un teclado con el tablero que se le da
         botones = []
         for i in [0,3,6]:
-            botones.append([InlineKeyboardButton(text=board[i], callback_data=str(i)),
-                            InlineKeyboardButton(text=board[i+1], callback_data=str(i+1)),
-                            InlineKeyboardButton(text=board[i+2], callback_data=str(i+2))])
+            botones.append([InlineKeyboardButton(text=self.board[i], callback_data=str(i)),
+                            InlineKeyboardButton(text=self.board[i+1], callback_data=str(i+1)),
+                            InlineKeyboardButton(text=self.board[i+2], callback_data=str(i+2))])
         return InlineKeyboardMarkup(inline_keyboard = botones)
     
-    def representateKeyboard(board): # Crea una representacion en texto del tablero
+    def representateKeyboard(self): # Crea una representacion en texto del tablero
         rep = ''
         for i in [0,3,6]:
-            rep = rep + '|'+ board[i] +'|' + board[i+1] + '|' + board[i+2] + '| \n'
+            rep = rep + '|'+ self.board[i] +'|' + self.board[i+1] + '|' + self.board[i+2] + '| \n'
             
         return rep
 
@@ -136,7 +136,7 @@ TOKEN = '255866015:AAFvI3sUR1sOFbeDrUceVyAs44KlfKgx-UE'
 
 bot = telepot.DelegatorBot(TOKEN, [
     pave_event_space()(
-        per_chat_id(), create_open, GameStarter, timeout=3),
+        per_chat_id(), create_open, GameStarter, timeout=30),
     pave_event_space()(
         per_callback_query_origin(), create_open, Game, timeout=30),
 ])
